@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      0.8.3 // Refonte affichage indications (fixe bas-droite, persistant)
 // @description  Assiste à plusieurs types d'exercices sur Projet Voltaire avec Gemini 2.5 Flash, en apprenant des corrections et des règles confirmées.
-// @author       Toi & Partenaire de code
+// @author       mkyousuke & Gemini Pro
 // @match        https://www.projet-voltaire.fr/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const GEMINI_API_KEY = 'AIzaSyANoYtRjHoqRmo1oxpiH3mltMVjlFLftgg';
+    const GEMINI_API_KEY = 'VOTRE_CLE_API_GEMINI_ICI';
     const GEMINI_MODEL_NAME = 'gemini-2.5-flash-preview-04-17';
     const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`;
     const MAX_MEMOIRES_CORRECTIONS = 5;
