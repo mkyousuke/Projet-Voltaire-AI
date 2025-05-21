@@ -7,7 +7,7 @@ Ce document décrit les différentes versions du script "Projet Voltaire Assista
 Actuellement, trois versions principales du script sont proposées :
 
 1.  `version_gemini-2.0-flash-001.user.js` (moins optimisée mais moins coûteuse)
-2.  `version_gemini-2.5-flash-preview-04-17.user.js` (plus optimisé mais plus coûteux que la 2.0)
+2.  `version_gemini-2.5-flash-preview-04-17.user.js` (plus optimisée mais plus coûteux que la 2.0)
 3.  `version_gemini-2.5-flash-preview-04-17_thinking.user.js` (la plus optimisée mais la plus coûteuse)
 
 ---
