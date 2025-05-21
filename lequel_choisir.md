@@ -9,6 +9,7 @@ Actuellement, trois versions principales du script sont proposées :
 1.  `version_gemini-2.0-flash-001.user.js` (moins optimisée mais moins coûteuse)
 2.  `version_gemini-2.5-flash-preview-04-17.user.js` (plus optimisée mais plus coûteuse que la 2.0)
 3.  `version_gemini-2.5-flash-preview-04-17_thinking.user.js` (la plus optimisée mais la plus coûteuse)
+4. 3. Nouvelle interface : `version_gemini-2.5-flash-preview-04-17_thinking.user.js` (moins optimisée, mais fonctionnelle avec la nouvelle interface)
 
 ---
 
