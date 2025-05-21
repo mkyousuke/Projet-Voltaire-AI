@@ -57,7 +57,7 @@ Une clé API personnelle pour les modèles Gemini de Google est nécessaire. Voi
     * Une fois dans Google AI Studio, cherchez une option telle que "**Get API key**" (Obtenir une clé API) ou "**Create API key**" (Créer une clé API). Cette option est souvent située dans le menu de navigation à gauche (parfois sous "API key") ou via un bouton proéminent.
     * L'interface de Google AI Studio peut évoluer, mais l'option est généralement bien visible.
 5.  **✨ Créez une nouvelle clé API :**
-    * Vous aurez probablement l'option de "Créer une clé API dans un nouveau projet" ("Create API key in new project") ou d'utiliser un projet existant. Pour une première utilisation simple, créer un nouveau projet est souvent le plus direct.
+    * Vous aurez probablement l'option de "Créer une clé API dans un nouveau projet" ("Create API key in new project"), "Gemini API" (que je recommande) ou d'utiliser un projet existant. Pour une première utilisation simple, sélectionner "Gemini API" est le mieux à faire.
     * Cliquez sur le bouton pour générer la clé.
 6.  **📋 Copiez et sauvegardez votre clé API :**
     * Une fois la clé générée, elle s'affichera à l'écran. **C'est une chaîne de caractères longue et unique.**
