@@ -114,7 +114,6 @@ Le script est maintenant prêt à être utilisé !
 * Partenaire de code (Gemini Pro)
 
 ---
----
 
 # Projet Voltaire Assistant (with Gemini API)
 
