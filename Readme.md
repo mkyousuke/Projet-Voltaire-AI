@@ -67,7 +67,7 @@ Une clé API personnelle pour les modèles Gemini de Google est nécessaire. Voi
 **Conseils importants concernant votre clé API :**
 
 * **Sécurité :** Ne publiez jamais votre clé API dans un endroit public (comme un dépôt GitHub public, un forum, etc.). Si vous pensez que votre clé a été compromise, vous devriez pouvoir la révoquer et en générer une nouvelle via Google AI Studio.
-* **Quotas et facturation :** L'API Gemini est souvent proposée avec un niveau d'utilisation gratuit (free tier) qui est généralement suffisant pour un usage personnel et des tests (par exemple, le modèle `gemini-2.0-flash-001` ou `gemini-2.5-flash-preview-04-17` peut avoir une limite de requêtes par minute, comme 60 RPM pour certains modèles Flash en accès gratuit). Cependant, soyez conscient des [limites de quota et des conditions de tarification officielles](https://ai.google.dev/pricing) si votre usage devient intensif. La gestion de ces aspects relève de votre responsabilité.
+* **Quotas et facturation :** L'API Gemini est souvent proposée avec un niveau d'utilisation gratuit (free tier) qui est généralement suffisant pour un usage personnel et des tests (par exemple, le modèle `gemini-2.0-flash-001` ou `gemini-2.5-flash-preview-04-17` peut avoir une limite de requêtes par minute, comme 15 RPM pour certains modèles Flash en accès gratuit). Cependant, soyez conscient des [limites de quota et des conditions de tarification officielles](https://ai.google.dev/pricing) si votre usage devient intensif. La gestion de ces aspects relève de votre responsabilité.
 
 ### 2. Insérer la Clé API dans le Script
 
@@ -109,123 +109,6 @@ Le script est maintenant prêt à être utilisé !
 * L'objectif de ce script est d'aider à la compréhension et à l'apprentissage, et non de contourner le processus éducatif.
 
 ## Auteurs
-
-* [mkyousuke]
-* Partenaire de code (Gemini Pro)
-
----
-
-# Projet Voltaire Assistant (with Gemini API)
-
-A UserScript designed to assist in solving exercises on the Projet Voltaire website by leveraging the capabilities of Google's Gemini AI. This script helps identify errors in "single sentence" type exercises and evaluate sentences in MCQ (Multiple Choice Question) type exercises.
-
-**Versions:**
-* This project has evolved and supports different versions of Gemini models, notably `gemini-2.0-flash-001` (in older script versions, like v0.7.4) and `gemini-2.5-flash-preview-04-17` (in more recent versions, like v0.7.6). Ensure you use the script version corresponding to the model you wish to use and that your API key supports.
-
-## Features
-
-* **Single Sentence Assistance:**
-    * Detects exercises where a single error needs to be found in a sentence.
-    * Sends the sentence to the Gemini API for analysis.
-    * Highlights the word or group of words identified as incorrect by the AI, or indicates if no error is suggested.
-* **MCQ Assistance:**
-    * Detects MCQ exercises where multiple sentences must be evaluated as "correct" or "incorrect" based on a given grammatical rule.
-    * Extracts the rule and sentences.
-    * Sends the information to the Gemini API for evaluation.
-    * Highlights the "Correct" or "Incorrect" buttons suggested by the AI for each sentence.
-* **Simple User Interface:**
-    * Adds a discreet button on the exercise page to initiate the analysis.
-    * Displays clear indications of the analysis status and AI suggestions.
-
-## Prerequisites
-
-1.  **A modern web browser:** Chrome, Firefox, Edge, Opera, or any other browser supporting user script management extensions.
-2.  **A user script management extension:**
-    * [Tampermonkey](https://www.tampermonkey.net/) (recommended, available for most browsers)
-    * Greasemonkey (for Firefox)
-    * Violentmonkey (open source, cross-browser)
-3.  **A Gemini API Key:** You must have your own API key to access Google's Gemini models. Instructions to obtain and configure it are below.
-
-## Installation
-
-1.  **Install your chosen user script management extension** (e.g., Tampermonkey) if you haven't already.
-2.  **Get the script:**
-    * Click on the desired `.user.js` file from this GitHub repository (e.g., `version_gemini-2.0-flash-001.user.js` or `version_gemini-2.5-flash-preview-04-17.user.js`).
-    * Click the "Raw" button.
-    * Tampermonkey (or your extension) should automatically detect the script and offer to install it.
-    * If this doesn't happen automatically, copy the raw code of the script. Open the Tampermonkey dashboard, go to the "Utilities" tab or create a new script, then paste the code and save.
-3.  **Confirm the installation** in Tampermonkey.
-
-## Configuration
-
-For the script to work, you must obtain and configure your own Gemini API key.
-
-### 1. Obtain your Gemini API Key
-
-A personal API key for Google's Gemini models is required. Here are the general steps to get one via Google AI Studio:
-
-1.  **Go to Google AI Studio:**
-    * Open your web browser and navigate to the [Google AI Studio](https://aistudio.google.com/) website.
-2.  **Sign in with your Google account:**
-    * If you are not already signed in, sign in with your personal Google account.
-3.  **Accept the terms of service:**
-    * If this is your first visit, you may need to read and accept the terms of service for Google AI Studio and the Gemini APIs.
-4.  **Find the option to get an API key:**
-    * Once in Google AI Studio, look for an option like "**Get API key**" or "**Create API key**". This option is often located in the left navigation menu (sometimes under "API key") or via a prominent button.
-    * The Google AI Studio interface may change, but the option is usually clearly visible.
-5.  **Create a new API key:**
-    * You will likely have the option to "Create API key in new project" or use an existing project. For a simple first-time use, creating a new project is often the most straightforward.
-    * Click the button to generate the key.
-6.  **Copy and save your API key:**
-    * Once the key is generated, it will be displayed on the screen. **It is a long and unique string of characters.**
-    * **Copy this key immediately.**
-    * **Keep it in a safe place and do not share it publicly.** Treat it like a password.
-
-**Important tips regarding your API key:**
-
-* **Security:** Never publish your API key in a public place (like a public GitHub repository, forum, etc.). If you believe your key has been compromised, you should be able to revoke it and generate a new one via Google AI Studio.
-* **Quotas and Billing:** The Gemini API is often offered with a free tier, which is generally sufficient for personal use and testing (e.g., `gemini-2.0-flash-001` or `gemini-2.5-flash-preview-04-17` models might have a request per minute limit, such as 60 RPM for some Flash models on free access). However, be aware of the [official quota limits and pricing terms](https://ai.google.dev/pricing) if your usage becomes intensive. Managing these aspects is your responsibility.
-
-### 2. Insert the API Key into the Script
-
-Once you have obtained your API key:
-
-1.  **Open the script for editing:**
-    * Go to the Tampermonkey dashboard (or your script manager's dashboard).
-    * Find "Projet Voltaire Assistant" (or the exact name of the script you installed) in your list of scripts.
-    * Click the corresponding edit icon.
-2.  **Locate the API key configuration line:**
-    At the beginning of the script, you will find a line similar to this:
-    ```javascript
-    const GEMINI_API_KEY = 'YOUR_GEMINI_API_KEY_HERE';
-    ```
-    *(Note: Shared versions might have an example key like `AIzaSy...`; replace it.)*
-3.  **Replace `'YOUR_GEMINI_API_KEY_HERE'`** with your own Gemini API key that you just copied. Ensure the key is enclosed in single quotes.
-    For example:
-    ```javascript
-    const GEMINI_API_KEY = 'AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXX';
-    ```
-4.  **Save the changes** to the script (often via a "Save" button or the Ctrl+S key combination).
-
-The script is now ready to use!
-
-## Usage
-
-1.  Navigate to the [Projet Voltaire](https://www.projet-voltaire.fr/) website and log in.
-2.  Access a training module containing "single sentence" or MCQ type exercises.
-3.  When the script detects a compatible exercise, an "Analyser Phrase (Gemini)" (Analyze Sentence) or "Analyser QCM (Gemini)" (Analyze MCQ) button will appear (usually at the top right of the page).
-4.  Click this button to send the question to the Gemini API.
-5.  Indications will appear to inform you of the analysis status and the AI's suggestions.
-
-## Warning / Disclaimer
-
-* This script is provided **"AS IS"**, without any warranty of proper functioning, accuracy of AI-provided answers, or continued compatibility with the Projet Voltaire website (which may change its structure at any time).
-* Use of this script is at **your own risk**. Responses provided by the Gemini AI may contain errors or inaccuracies. This script is an assistance tool and should not be used to cheat or replace personal learning.
-* **The author of this script is not responsible** for how you use this script, the consequences of its use (including, but not limited to, results obtained on Projet Voltaire), or any violation of the Projet Voltaire or Gemini API terms of service.
-* You are responsible for managing and securing your Gemini API key, as well as any potential costs associated with its use.
-* The purpose of this script is to aid understanding and learning, not to bypass the educational process.
-
-## Authors
 
 * [mkyousuke]
 * Partenaire de code (Gemini Pro)
