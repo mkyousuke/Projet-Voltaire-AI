@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Projet Voltaire Assistant (Gemini 2.5 Flash)
 // @namespace    http://tampermonkey.net/
-// @version      0.7.8 // Ajout thinkingBudget paramétrable pour Phrases Uniques et QCM
-// @description  Assiste à plusieurs types d'exercices sur Projet Voltaire avec Gemini 2.5 Flash.
-// @author       Toi & Partenaire de code
+// @version      0.8.2 // Amélioration recherche mot erroné, suppression commentaires
+// @description  Assiste à plusieurs types d'exercices sur Projet Voltaire avec Gemini 2.5 Flash, en apprenant des corrections et des règles confirmées.
+// @author       mkyousuke & Gemini Pro
 // @match        https://www.projet-voltaire.fr/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
@@ -14,12 +14,13 @@
 (function() {
     'use strict';
 
-    // --- Configuration ---
-    const GEMINI_API_KEY = 'VOTRE_CLE_API_GEMINI_ICI'; 
+    const GEMINI_API_KEY = 'VOTRE_CLE_API_GEMINI_ICI';
     const GEMINI_MODEL_NAME = 'gemini-2.5-flash-preview-04-17';
     const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`;
+    const MAX_MEMOIRES_CORRECTIONS = 5;
 
-    // --- Fonctions Utilitaires ---
+    let memoireDesCorrections = [];
+
     const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     let indicationBoxes = [];
 
@@ -77,31 +78,57 @@
         }
     }
 
-    async function callGeminiAPI(promptText, temperature = 0.1, maxOutputTokens = 100, customThinkingBudget = 0) {
+    async function callGeminiAPI(promptText, temperature = 0.1, maxOutputTokens = 100, customThinkingBudget = 0, systemInstructionText = null) {
         if (!GEMINI_API_KEY || GEMINI_API_KEY.startsWith('VOTRE_CLE')) {
             showIndication("ERREUR : Clé API Gemini non configurée.", null, true, "apierror");
             return Promise.reject("Clé API non configurée");
         }
-        console.log(`[PV Gemini Assistant] Prompt envoyé à ${GEMINI_MODEL_NAME}:`, promptText);
+        
+        let finalSystemInstruction = systemInstructionText || "";
+        if (memoireDesCorrections.length > 0) {
+            let learnedContext = "\n\nIMPORTANT : Prends en compte ces corrections et règles observées précédemment pour améliorer la précision de ta réponse actuelle :\n";
+            memoireDesCorrections.forEach((lecon, index) => {
+                learnedContext += `Leçon ${index + 1}: Règle: "${lecon.ruleTitle}" (Explication: ${lecon.ruleExplanation}).`;
+                if (lecon.type === "phrase_unique_correction") {
+                    learnedContext += ` Phrase correcte exemple: "${lecon.correctedSentence}".\n`;
+                } else if (lecon.type === "pas_de_faute_confirmation_regle") {
+                    learnedContext += ` Cette règle a été confirmée comme s'appliquant à une phrase sans faute (Exemple de phrase concernée: "${lecon.correctedSentence}").\n`;
+                } else {
+                    learnedContext += "\n";
+                }
+            });
+            finalSystemInstruction = (finalSystemInstruction ? finalSystemInstruction + "\n" : "") + learnedContext;
+        }
+
+        console.log(`[PV Gemini Assistant] Instruction Système Combinée envoyée:`, finalSystemInstruction || "Aucune");
+        console.log(`[PV Gemini Assistant] Prompt (contents) envoyé à ${GEMINI_MODEL_NAME}:`, promptText);
         console.log(`[PV Gemini Assistant] Paramètres: temp=${temperature}, maxTokens=${maxOutputTokens}, thinkingBudget=${customThinkingBudget}`);
+
+        const requestBody = {
+            contents: [{ parts: [{ text: promptText }] }],
+            generationConfig: {
+                temperature: temperature,
+                maxOutputTokens: maxOutputTokens,
+                topK: 1,
+                topP: 0.1,
+                thinkingConfig: {
+                    thinkingBudget: customThinkingBudget
+                }
+            }
+        };
+
+        if (finalSystemInstruction) {
+            requestBody.systemInstruction = {
+                parts: [{ text: finalSystemInstruction }]
+            };
+        }
 
         return new Promise((resolve, reject) => {
             GM_xmlhttpRequest({
                 method: 'POST',
                 url: GEMINI_API_URL,
                 headers: { 'Content-Type': 'application/json', },
-                data: JSON.stringify({
-                    contents: [{ parts: [{ text: promptText }] }],
-                    generationConfig: {
-                        temperature: temperature,
-                        maxOutputTokens: maxOutputTokens,
-                        topK: 1,
-                        topP: 0.1,
-                        thinkingConfig: {
-                            thinkingBudget: customThinkingBudget
-                        }
-                    }
-                }),
+                data: JSON.stringify(requestBody),
                 timeout: 60000,
                 onload: (response) => {
                     console.log(`[PV Gemini Assistant] Réponse API reçue. Statut: ${response.status}`);
@@ -182,7 +209,7 @@
         }
 
         if (!sentenceElement || !noMistakeButton) {
-            console.log("[PV Gemini Assistant] Type 1: Conditions non remplies (sélecteurs spécifiques pour phrase unique non trouvés).");
+            console.log("[PV Gemini Assistant] Type 1: Conditions non remplies.");
             return;
         }
         const sentenceText = sentenceElement.textContent.trim();
@@ -190,15 +217,18 @@
 
         console.log(`[PV Gemini Assistant] Type 1 (Phrase unique) détectée : "${sentenceText}"`);
         showIndication(`Analyse (Phrase unique) en cours avec ${GEMINI_MODEL_NAME}...`, null, true, "singlecorrection");
-        const prompt = `Tu es un correcteur grammatical, orthographique, et syntaxique expert de la langue française. Analyse la phrase suivante pour identifier une unique faute (la plus évidente ou la première rencontrée s'il y en a plusieurs). Types de fautes : orthographe, grammaire, conjugaison, accord, typographie, syntaxe. Phrase : "${sentenceText}" Instructions : 1. Si faute, réponds avec le mot/groupe de mots fautif exact. 2. Si correcte, réponds "AUCUNE_FAUTE". Ne fournis aucune explication. Exemples : "Les chat sont joueurs." -> "chat"; "Tout est en ordre." -> "AUCUNE_FAUTE".`;
+        
+        const systemInstructionForSingle = `Tu es un correcteur grammatical, orthographique, et syntaxique expert de la langue française.`;
+        const prompt = `Analyse la phrase suivante pour identifier une unique faute (la plus évidente ou la première rencontrée s'il y en a plusieurs). Types de fautes : orthographe, grammaire, conjugaison, accord, typographie, syntaxe. Phrase : "${sentenceText}" Instructions : 1. Si faute, réponds avec le mot/groupe de mots fautif exact. 2. Si correcte, réponds "AUCUNE_FAUTE". Ne fournis aucune explication. Exemples : "Les chat sont joueurs." -> "chat"; "Tout est en ordre." -> "AUCUNE_FAUTE".`;
+        
         try {
-            const singleSentenceThinkingBudget = 512; // Budget de réflexion pour les phrases uniques
-            const estimatedResponseTokens = 30;      // Estimation pour "AUCUNE_FAUTE" ou un mot/groupe de mots
-            const singleSentenceMaxOutputTokens = singleSentenceThinkingBudget + estimatedResponseTokens + 50; // Budget + réponse + marge
+            const singleSentenceThinkingBudget = 512;
+            const estimatedResponseTokens = 30;
+            const singleSentenceMaxOutputTokens = singleSentenceThinkingBudget + estimatedResponseTokens + 50;
 
             console.log(`[PV Gemini Assistant] Phrase Unique: thinkingBudget=${singleSentenceThinkingBudget}, calculatedMaxOutputTokens=${singleSentenceMaxOutputTokens}`);
 
-            const geminiResponse = await callGeminiAPI(prompt, 0.1, singleSentenceMaxOutputTokens, singleSentenceThinkingBudget);
+            const geminiResponse = await callGeminiAPI(prompt, 0.1, singleSentenceMaxOutputTokens, singleSentenceThinkingBudget, systemInstructionForSingle);
             
             if (!geminiResponse && geminiResponse !== "") {
                 showIndication("Aucune réponse de Gemini (Phrase unique) ou clé API non configurée.", null, true, "singlecorrection");
@@ -212,23 +242,62 @@
                 const wordsToClickElements = Array.from(document.querySelectorAll('.pointAndClickView .pointAndClickSpan'));
                 let foundElement = null;
                 const cleanGeminiResponse = geminiResponse.replace(/[.,;:!?]$/, '').trim();
+
                 foundElement = wordsToClickElements.find(el => el.textContent.trim() === cleanGeminiResponse);
+
+                if (!foundElement) {
+                    foundElement = wordsToClickElements.find(el => el.textContent.trim().toLowerCase() === cleanGeminiResponse.toLowerCase());
+                }
+
                 if (!foundElement) {
                     const lowerCleanResponse = cleanGeminiResponse.toLowerCase();
-                    foundElement = wordsToClickElements.find(el => {
-                        const lowerElText = el.textContent.trim().toLowerCase();
-                        if (lowerElText.includes(lowerCleanResponse)) return true;
-                        if (lowerCleanResponse.includes(lowerElText) && lowerElText.length > 2) return true;
-                        return false;
-                    });
-                }
-                 if (!foundElement && cleanGeminiResponse.includes(' ')) {
-                    const responseWords = cleanGeminiResponse.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-                     for (const span of wordsToClickElements) {
-                        const spanTextLower = span.textContent.trim().toLowerCase();
-                        if (responseWords.some(rw => spanTextLower.includes(rw))) { foundElement = span; break; }
+                    let candidates = [];
+
+                    for (let i = 0; i < wordsToClickElements.length; i++) {
+                        const el = wordsToClickElements[i];
+                        const elTextTrimmed = el.textContent.trim();
+                        const lowerElText = elTextTrimmed.toLowerCase();
+                        let score = 0;
+
+                        if (lowerElText === "") continue;
+
+                        if (lowerElText.includes(lowerCleanResponse)) {
+                            score = 90 - (lowerElText.length - lowerCleanResponse.length);
+                        } else if (lowerCleanResponse.includes(lowerElText)) {
+                            if (lowerElText.length > 2) {
+                                 score = 70 + lowerElText.length;
+                            } else if (lowerElText.length > 0 && lowerCleanResponse.split(/\s+/).length ===1 && lowerCleanResponse.length <=3) {
+                                 score = 75;
+                            }
+                        }
+                        if (score > 0) {
+                            candidates.push({ element: el, score: score, index: i, text: elTextTrimmed });
+                        }
+                    }
+
+                    if (candidates.length === 0 && cleanGeminiResponse.includes(' ')) {
+                        const responseWords = lowerCleanResponse.split(/\s+/).filter(w => w.length > 2);
+                        for (let i = 0; i < wordsToClickElements.length; i++) {
+                            const el = wordsToClickElements[i];
+                            const spanTextLower = el.textContent.trim().toLowerCase();
+                            if (responseWords.some(rw => spanTextLower.includes(rw))) {
+                                candidates.push({element: el, score: 40, index: i, text: el.textContent.trim()});
+                            }
+                        }
+                    }
+                    
+                    if (candidates.length > 0) {
+                        candidates.sort((a, b) => {
+                            if (b.score !== a.score) {
+                                return b.score - a.score;
+                            }
+                            return a.index - b.index;
+                        });
+                        foundElement = candidates[0].element;
+                        console.log(`[PV Gemini Assistant] Meilleure correspondance trouvée (score ${candidates[0].score}, index ${candidates[0].index}): "${candidates[0].text}" pour la réponse Gemini "${cleanGeminiResponse}"`);
                     }
                 }
+
                 if (foundElement) {
                     showIndication(`${GEMINI_MODEL_NAME} suggère une faute sur/près de : "<b>${geminiResponse}</b>". <br>👉 Cliquez sur le mot/groupe surligné.`, foundElement, false, "faultword");
                     foundElement.style.outline = '3px solid red'; foundElement.style.borderWidth = '3px';  foundElement.style.boxShadow = '0 0 10px red';
@@ -251,18 +320,29 @@
         }
 
         const ruleTitleElement = qcmPopup.querySelector('.intensiveRule .rule-details-title');
-        let ruleContext = ruleTitleElement ? ruleTitleElement.textContent.trim() : "la règle de grammaire spécifiée";
-        console.log(`[PV Gemini Assistant] Type 2 - Règle détectée : ${ruleContext}`);
+        const ruleTitleText = ruleTitleElement ? ruleTitleElement.textContent.trim() : "";
 
-        const questionItems = qcmPopup.querySelectorAll('.intensiveQuestions .intensiveQuestion');
-
-        if (questionItems.length === 0) {
-            console.log("[PV Gemini Assistant] Type 2: Aucun item de question (.intensiveQuestion) trouvé dans le QCM.");
-            showIndication("Type 2: Aucun item de question à analyser trouvé. Structure HTML inattendue pour le QCM.", null, true, "multichoicenophrases");
-            return;
+        let fullRuleDescription = "";
+        const ruleExplanationElement = qcmPopup.querySelector('.rule-details-description .explanation'); 
+        
+        if (ruleExplanationElement) {
+            fullRuleDescription = ruleExplanationElement.textContent.trim();
+            console.log("[PV Gemini Assistant] Texte descriptif QCM de la règle détecté :", fullRuleDescription);
+        } else {
+            console.warn("[PV Gemini Assistant] Texte descriptif QCM de la règle non trouvé (sélecteur utilisé: '.rule-details-description .explanation').");
         }
-        console.log(`[PV Gemini Assistant] Type 2: ${questionItems.length} items trouvés. Règle : ${ruleContext}`);
-        showIndication(`Analyse (QCM) en cours pour ${questionItems.length} phrases avec ${GEMINI_MODEL_NAME}...`, null, true, "multichoice");
+
+        let systemInstructionForRule;
+        if (ruleTitleText || fullRuleDescription) {
+            let ruleCombinedText = ruleTitleText;
+            if (fullRuleDescription) {
+                ruleCombinedText += (ruleTitleText ? ' - Description : ' : '') + fullRuleDescription;
+            }
+            systemInstructionForRule = `Tu es un correcteur grammatical expert. La règle FONDAMENTALE à appliquer pour les phrases suivantes est : "${ruleCombinedText}". Tu dois évaluer chaque phrase UNIQUEMENT en fonction de cette règle et des règles générales du français standard. Sois rigoureux et précis.`;
+        } else {
+            systemInstructionForRule = `Tu es un correcteur grammatical expert. Applique les règles générales du français standard pour évaluer les phrases suivantes. Sois rigoureux et précis.`;
+            console.warn("[PV Gemini Assistant] QCM: Ni titre, ni description de règle trouvés. Utilisation d'une instruction système générique.");
+        }
 
         const understoodButton = qcmPopup.querySelector('button.understoodButton');
         if (understoodButton && understoodButton.style.display !== 'none' && getComputedStyle(understoodButton).visibility !== 'hidden' && getComputedStyle(understoodButton).opacity !== '0') {
@@ -270,6 +350,15 @@
             understoodButton.click();
             await wait(500);
         }
+
+        const questionItems = qcmPopup.querySelectorAll('.intensiveQuestions .intensiveQuestion');
+        if (questionItems.length === 0) {
+            console.log("[PV Gemini Assistant] Type 2: Aucun item de question (.intensiveQuestion) trouvé dans le QCM.");
+            showIndication("Type 2: Aucun item de question à analyser trouvé.", null, true, "multichoicenophrases");
+            return;
+        }
+        console.log(`[PV Gemini Assistant] Type 2: ${questionItems.length} items trouvés. Règle (titre): "${ruleTitleText}"`);
+        showIndication(`Analyse (QCM) en cours pour ${questionItems.length} phrases avec ${GEMINI_MODEL_NAME}...`, null, true, "multichoice");
 
         let phrasesTextArray = [];
         let phraseElementsData = [];
@@ -299,7 +388,7 @@
             return;
         }
 
-        const prompt = `Tu es un expert en grammaire et orthographe. La question porte sur la règle : "${ruleContext}". Pour chaque phrase numérotée ci-dessous, indique si elle est "CORRECTE" ou "INCORRECTE" selon les règles du français standard et la règle spécifiée.
+        const userPromptForQCM = `En te basant sur la règle fondamentale fournie précédemment dans l'instruction système, évalue les phrases suivantes.
 Phrases :
 ${phrasesTextArray.join("\n")}
 Instructions : Réponds avec un tableau JSON. Chaque objet : {"numero": (entier de 1 à ${phrasesTextArray.length}), "evaluation": ("CORRECTE" ou "INCORRECTE")}. Seulement le tableau JSON. Exemple : [{"numero": 1, "evaluation": "CORRECTE"}, {"numero": 2, "evaluation": "INCORRECTE"}]`;
@@ -309,9 +398,10 @@ Instructions : Réponds avec un tableau JSON. Chaque objet : {"numero": (entier 
             const estimatedResponseTokens = 20 * phrasesTextArray.length;
             const qcmMaxOutputTokens = qcmThinkingBudget + estimatedResponseTokens + 150;
 
-            console.log(`[PV Gemini Assistant] QCM: thinkingBudget=${qcmThinkingBudget}, estimatedResponseTokens=${estimatedResponseTokens}, calculatedMaxOutputTokens=${qcmMaxOutputTokens}`);
+            console.log(`[PV Gemini Assistant] QCM: thinkingBudget=${qcmThinkingBudget}, calculatedMaxOutputTokens=${qcmMaxOutputTokens}`);
 
-            const geminiResponse = await callGeminiAPI(prompt, 0.2, qcmMaxOutputTokens, qcmThinkingBudget);
+            const geminiResponse = await callGeminiAPI(userPromptForQCM, 0.2, qcmMaxOutputTokens, qcmThinkingBudget, systemInstructionForRule);
+            
             if (!geminiResponse && geminiResponse !== "") {
                 showIndication("Aucune réponse de Gemini (QCM) ou clé API non configurée.", null, true, "multichoicenoresponse");
                 return;
@@ -337,31 +427,92 @@ Instructions : Réponds avec un tableau JSON. Chaque objet : {"numero": (entier 
                 }
             });
             showIndication(`Analyse (QCM) terminée. Vérifiez les suggestions.`, null, true, "multichoicedone");
+
         } catch (error) {
             showIndication(`Erreur analyse (QCM) : ${error}`, null, true, "multichoiceerror");
             console.error("[PV Gemini Assistant] Erreur processMultipleChoiceExercise:", error);
         }
     }
 
-    // --- Logique de détection et de bouton ---
+    function apprendreDesCorrections() {
+        const correctionIncorrecteNode = document.querySelector('.pointAndClick.answerDisplayed.incorrect .correctionView .correction');
+        const confirmationCorrecteNode = document.querySelector('.pointAndClick.answerDisplayed.correct .answerStatusBar.correct.noMistake');
+
+        let typeDeLecon = null;
+        let containerPrincipalNode = null;
+
+        if (correctionIncorrecteNode && correctionIncorrecteNode.offsetParent !== null) {
+            typeDeLecon = "phrase_unique_correction";
+            containerPrincipalNode = document.querySelector('.pointAndClick.answerDisplayed.incorrect');
+        } else if (confirmationCorrecteNode && confirmationCorrecteNode.offsetParent !== null) {
+            typeDeLecon = "pas_de_faute_confirmation_regle";
+            containerPrincipalNode = document.querySelector('.pointAndClick.answerDisplayed.correct');
+        }
+
+        if (typeDeLecon && containerPrincipalNode) {
+            const containerRegle = containerPrincipalNode.querySelector('.rule-details');
+            let phrasePourLecon = "N/A";
+
+            if (typeDeLecon === "phrase_unique_correction") {
+                phrasePourLecon = correctionIncorrecteNode.textContent.trim();
+            } else if (typeDeLecon === "pas_de_faute_confirmation_regle") {
+                const phraseOriginaleNode = containerPrincipalNode.querySelector('.sentence');
+                if (phraseOriginaleNode) {
+                    phrasePourLecon = phraseOriginaleNode.textContent.trim();
+                } else {
+                     phrasePourLecon = "Phrase originale non trouvée pour cette règle confirmée.";
+                }
+            }
+
+            if (containerRegle) {
+                const titreRegle = containerRegle.querySelector('.rule-details-title')?.textContent.trim();
+                const explicationRegleNode = containerRegle.querySelector('.rule-details-description .explanation');
+                const explicationRegle = explicationRegleNode ? explicationRegleNode.textContent.trim() : "";
+
+                if (titreRegle || explicationRegle) {
+                    const nouvelleLecon = {
+                        type: typeDeLecon,
+                        ruleTitle: titreRegle || (typeDeLecon === "phrase_unique_correction" ? "Règle non titrée (correction)" : "Règle non titrée (pas de faute)"),
+                        ruleExplanation: explicationRegle,
+                        correctedSentence: phrasePourLecon,
+                        timestamp: Date.now()
+                    };
+
+                    if (!memoireDesCorrections.some(lecon => 
+                        lecon.ruleTitle === nouvelleLecon.ruleTitle && 
+                        lecon.ruleExplanation === nouvelleLecon.ruleExplanation &&
+                        (lecon.type !== "pas_de_faute_confirmation_regle" || lecon.correctedSentence === nouvelleLecon.correctedSentence)
+                    )) {
+                        memoireDesCorrections.push(nouvelleLecon);
+                        if (memoireDesCorrections.length > MAX_MEMOIRES_CORRECTIONS) {
+                            memoireDesCorrections.shift();
+                        }
+                        console.log("[PV Gemini Assistant] Leçon apprise : ", nouvelleLecon);
+                    }
+                }
+            }
+        }
+    }
+
     let currentPath = "";
     let analyzeButton = null;
     let uiUpdateTimeout = null;
 
     function updateUIForCurrentPage() {
         console.log("[PV Gemini Assistant] updateUIForCurrentPage: Vérification...");
+        apprendreDesCorrections();
 
         const qcmPopup = document.querySelector('.popupPanel.intensivePopup .intensiveQuestion');
         const qcmRuleTitle = document.querySelector('.popupPanel.intensivePopup .intensiveRule .rule-details-title');
-        const type1Container = document.querySelector('.pointAndClickView');
+        const type1Container = document.querySelector('.pointAndClickView:not(.answerDisplayed)');
         const type1Sentence = type1Container ? type1Container.querySelector('.sentence') : null;
         const type1PointAndClickSpans = type1Container ? type1Container.querySelectorAll('.pointAndClickSpan') : [];
 
-        console.log(`  > Détection QCM - Popup Item (.popupPanel.intensivePopup .intensiveQuestion): ${qcmPopup ? 'Trouvé' : 'Non trouvé'}`);
-        console.log(`  > Détection QCM - Titre Règle (.popupPanel.intensivePopup .intensiveRule .rule-details-title): ${qcmRuleTitle ? 'Trouvé' : 'Non trouvé'}`);
-        console.log(`  > Détection Type 1 - Conteneur (.pointAndClickView): ${type1Container ? 'Trouvé' : 'Non trouvé'}`);
-        console.log(`  > Détection Type 1 - Phrase (dans .pointAndClickView): ${type1Sentence ? 'Trouvé' : 'Non trouvé'}`);
-        console.log(`  > Détection Type 1 - Mots cliquables (dans .pointAndClickView): ${type1PointAndClickSpans.length > 0 ? `Trouvé (${type1PointAndClickSpans.length})` : 'Non trouvé'}`);
+        console.log(`  > Détection QCM - Popup Item: ${qcmPopup ? 'Trouvé' : 'Non trouvé'}`);
+        console.log(`  > Détection QCM - Titre Règle: ${qcmRuleTitle ? 'Trouvé' : 'Non trouvé'}`);
+        console.log(`  > Détection Type 1 - Conteneur (non-réponse): ${type1Container ? 'Trouvé' : 'Non trouvé'}`);
+        console.log(`  > Détection Type 1 - Phrase: ${type1Sentence ? 'Trouvé' : 'Non trouvé'}`);
+        console.log(`  > Détection Type 1 - Mots cliquables: ${type1PointAndClickSpans.length > 0 ? `Trouvé (${type1PointAndClickSpans.length})` : 'Non trouvé'}`);
 
         const isQCM = qcmPopup && qcmRuleTitle;
         const isSingleSentence = type1Container && type1Sentence && type1PointAndClickSpans.length > 0 && !isQCM;
@@ -404,7 +555,7 @@ Instructions : Réponds avec un tableau JSON. Chaque objet : {"numero": (entier 
             document.body.appendChild(analyzeButton);
             showIndication("Prêt à analyser la phrase.", null, true, "readySingle");
         } else {
-            console.log("[PV Gemini Assistant] Détection: Aucun type d'exercice connu actif pour le moment.");
+            console.log("[PV Gemini Assistant] Détection: Aucun type d'exercice connu actif pour le moment (ou page de correction/confirmation).");
         }
     }
 

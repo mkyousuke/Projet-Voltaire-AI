@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      0.7.4 // Détection QCM améliorée et sélecteurs QCM internes
 // @description  Assiste à plusieurs types d'exercices sur Projet Voltaire avec Gemini 2.0 Flash.
-// @author       Toi & Partenaire de code
+// @author       mkyousuke & Gemini Pro
 // @match        https://www.projet-voltaire.fr/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue

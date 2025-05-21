@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      0.7.6 // Suppression safetySettings de generationConfig, maintien thinkingConfig
 // @description  Assiste à plusieurs types d'exercices sur Projet Voltaire avec Gemini 2.5 Flash.
-// @author       Toi & Partenaire de code
+// @author       mkyousuke & Gemini Pro
 // @match        https://www.projet-voltaire.fr/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
