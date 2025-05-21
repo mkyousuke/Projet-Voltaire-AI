@@ -58,4 +58,4 @@ Actuellement, trois versions principales du script sont proposées :
 **Note Importante sur les Modèles en "Preview" :**
 Le modèle `gemini-2.5-flash-preview-04-17` est, comme son nom l'indique, en version "preview". Cela signifie que Google peut y apporter des modifications, ajuster son comportement, ses performances, ou même sa tarification avant qu'il ne devienne généralement disponible (GA - General Availability).
 
-Choisissez la version du script qui correspond le mieux à vos priorités et à votre clé API. Vous pouvez toujours expérimenter avec différentes versions pour voir celle qui vous convient le mieux !
+Choisissez la version du script qui correspond le mieux à vos priorités et à votre clé API. Je recommande vous la version thinking mais vous pouvez toujours expérimenter avec différentes versions pour voir celle qui vous convient le mieux !
