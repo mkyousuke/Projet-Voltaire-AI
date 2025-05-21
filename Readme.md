@@ -110,5 +110,5 @@ Le script est maintenant prêt à être utilisé ! 🎉
 
 ## ✍️ Auteurs
 
-* [mkyousuke]
+* mkyousuke
 * Partenaire de code (Gemini Pro) 🤖
