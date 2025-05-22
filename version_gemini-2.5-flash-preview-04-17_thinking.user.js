@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Projet Voltaire Assistant (Gemini 2.5 Flash)
 // @namespace    http://tampermonkey.net/
-// @version      0.8.3 // Refonte affichage indications (fixe bas-droite, persistant)
+// @version      0.9.0 // Ajout du bouton de mémorisation manuelle et amélioration de la mémoire
 // @description  Assiste à plusieurs types d'exercices sur Projet Voltaire avec Gemini 2.5 Flash, en apprenant des corrections et des règles confirmées.
 // @author       mkyousuke & Gemini Pro
 // @match        https://www.projet-voltaire.fr/*
