@@ -4,7 +4,7 @@ Ce document décrit les différentes versions du script "Projet Voltaire Assista
 
 ## 🗂️ Scripts Disponibles
 
-Actuellement, trois versions principales du script sont proposées :
+Actuellement, trois versions principales et une experimentale du script sont proposées :
 
 1.  `version_gemini-2.0-flash-001.user.js` (moins optimisée mais moins coûteuse)
 2.  `version_gemini-2.5-flash-preview-04-17.user.js` (plus optimisée mais plus coûteuse que la 2.0)
@@ -43,17 +43,21 @@ Actuellement, trois versions principales du script sont proposées :
 ### 3. 🤔 `version_gemini-2.5-flash-preview-04-17_thinking.user.js`
 
 * **🤖 Modèle Gemini Utilisé :** `gemini-2.5-flash-preview-04-17`
-    * **⚙️ Caractéristiques Générales :** Identique au modèle précédent (`gemini-2.5-flash-preview-04-17`), avec ses capacités de "réflexion". En version "preview".
-    * **▶️ Comportement dans ce script :** La particularité de cette version du script est qu'elle configure le modèle `gemini-2.5-flash-preview-04-17` avec un **budget de réflexion (`thinkingBudget`) plus élevé** (par exemple, 512 tokens pour les phrases uniques et 1024 tokens pour les QCM, valeurs qui peuvent être ajustées dans le code). L'objectif est de permettre au modèle d'allouer plus de temps et de ressources à l'analyse de la tâche avant de fournir une réponse.
+    * **⚙️ Caractéristiques Générales :** Utilise le modèle `gemini-2.5-flash-preview-04-17`, tirant parti de ses capacités de "réflexion" via le paramètre `thinkingBudget`. Ce modèle est en version "preview".
+    * **▶️ Comportement dans ce script :** La particularité de cette version du script est qu'elle exploite activement le **budget de réflexion (`thinkingBudget`)** du modèle de différentes manières :
+        * **Analyse Standard (bouton "Analyser Phrase (Gemini)")**: Utilise un budget de réflexion par défaut (actuellement 512 tokens) pour une analyse rapide et efficace des phrases uniques. Si des règles ont été mémorisées, elles sont automatiquement incluses et le modèle est instruit de les prioriser.
+        * **Analyse Renforcée (bouton "Analyse renforcée (consomme plus)")**: Augmente considérablement le budget de réflexion pour les phrases uniques (actuellement 1536 tokens). Ceci permet au modèle d'allouer plus de temps et de ressources pour une analyse plus approfondie, combinant son savoir général et les règles mémorisées (qui sont toujours prioritaires si présentes), visant une précision accrue.
+        * **Analyse des QCM (bouton "Analyser QCM (Gemini)")**: Utilise un budget de réflexion spécifique (actuellement 1024 tokens) pour traiter la complexité des questions à choix multiples, en tenant compte du contexte de la règle de l'exercice et des règles mémorisées.
+    L'objectif global est de permettre au modèle de "réfléchir" davantage avant de répondre, en particulier avec l'option d'analyse renforcée pour les phrases.
 
 * **🎯 Pourquoi choisir cette version ?**
-    * **⭐ Qualité de réponse maximale :** Si vous recherchez la meilleure qualité d'analyse possible, en particulier pour les exercices plus complexes ou subtils. Laisser le modèle "réfléchir" davantage peut conduire à des suggestions plus précises.
-    * **🧩 Pour les cas difficiles :** Si vous constatez que les autres versions ne fournissent pas toujours des résultats satisfaisants pour certains types de fautes ou de QCM.
-    * **🚀 Exploiter pleinement le modèle 2.5 :** Si vous souhaitez tirer parti des capacités de raisonnement avancées du modèle 2.5 Flash.
+    * **⭐ Qualité de réponse optimisée :** Particulièrement avec le bouton "Analyse renforcée", si vous recherchez la meilleure qualité d'analyse pour des cas complexes ou subtils sur les phrases uniques.
+    * **🧠 Priorisation intelligente des règles apprises :** L'analyse standard des phrases intègre nativement une priorisation des règles que vous avez mémorisées, cherchant à appliquer vos apprentissages pour une meilleure pertinence.
+    * **🧩 Flexibilité d'analyse pour les phrases :** Permet de choisir entre une analyse standard (rapide, avec priorité aux règles mémorisées) et une analyse renforcée (plus approfondie, coûteuse, également avec priorité aux règles mémorisées) pour les phrases uniques.
+    * **🚀 Exploiter pleinement le modèle 2.5 Flash :** Si vous souhaitez tirer parti des capacités de raisonnement avancées du modèle, notamment avec l'analyse renforcée.
     * **⚠️ Considérations :**
-        * Cette version peut être légèrement plus lente à obtenir des réponses.
-        * Elle consommera plus de tokens API en raison du budget de réflexion alloué. Assurez-vous que vos `maxOutputTokens` sont également ajustés en conséquence dans le script pour accommoder à la fois la réflexion et la réponse.
-
+        * Le bouton "Analyse renforcée" peut être plus lent à obtenir des réponses.
+        * L'utilisation de budgets de réflexion plus élevés (surtout avec "Analyse renforcée") consommera plus de tokens API. Assurez-vous que vos `maxOutputTokens` sont également ajustés en conséquence dans le script pour accommoder à la fois la réflexion et la longueur de la réponse attendue.
 ---
 
 **📢 Note Importante sur les Modèles en "Preview" :**
