@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Projet Voltaire Assistant (Gemini 2.5 Flash)
 // @namespace    http://tampermonkey.net/
-// @version      0.9.0 // Ajout du bouton de mémorisation manuelle et amélioration de la mémoire
+// @version      0.9.1 // Ajout du bouton pour utiliser manuellement une règle mémorisée, amélioration de la précision, ajout d'une notification en cas de règle mémorisée utilisée. 
 // @description  Assiste à plusieurs types d'exercices sur Projet Voltaire avec Gemini 2.5 Flash, en apprenant des corrections et des règles confirmées.
 // @author       mkyousuke & Gemini Pro
 // @match        https://www.projet-voltaire.fr/*
@@ -50,6 +50,8 @@
     function showGlobalIndication(message, type = 'info') {
         ensureGlobalIndicationBox();
         globalIndicationBox.innerHTML = message;
+        globalIndicationBox.dataset.originalMessage = message;
+        globalIndicationBox.dataset.messageType = type;
         globalIndicationBox.style.display = 'block';
 
         if (type === 'error') {
@@ -64,7 +66,7 @@
             globalIndicationBox.style.backgroundColor = '#fefcdd';
             globalIndicationBox.style.borderColor = '#fbbc04';
             globalIndicationBox.style.color = '#3c4043';
-        } else {
+        } else { // info
             globalIndicationBox.style.backgroundColor = '#e9f5fe';
             globalIndicationBox.style.borderColor = '#1a73e8';
             globalIndicationBox.style.color = '#174ea6';
@@ -92,6 +94,7 @@
         }
 
         let finalSystemInstruction = systemInstructionText || "";
+        let memorizedRulesWereAddedToPrompt = false;
         if (memoireDesCorrections.length > 0) {
             let learnedContext = "\n\nIMPORTANT : Prends en compte ces corrections et règles observées précédemment pour améliorer la précision de ta réponse actuelle :\n";
             memoireDesCorrections.forEach((lecon, index) => {
@@ -105,11 +108,26 @@
                 }
             });
             finalSystemInstruction = (finalSystemInstruction ? finalSystemInstruction + "\n" : "") + learnedContext;
+            memorizedRulesWereAddedToPrompt = true;
         }
 
         console.log(`[PV Gemini Assistant] Instruction Système Combinée envoyée:`, finalSystemInstruction || "Aucune");
         console.log(`[PV Gemini Assistant] Prompt (contents) envoyé à ${GEMINI_MODEL_NAME}:`, promptText);
         console.log(`[PV Gemini Assistant] Paramètres: temp=${temperature}, maxTokens=${maxOutputTokens}, thinkingBudget=${customThinkingBudget}`);
+
+        if (memorizedRulesWereAddedToPrompt) {
+            if (globalIndicationBox &&
+                globalIndicationBox.style.display === 'block' &&
+                globalIndicationBox.dataset.messageType === 'loading' &&
+                globalIndicationBox.dataset.originalMessage &&
+                globalIndicationBox.innerHTML.includes("Analyse en cours")) {
+                const originalLoadingMessage = globalIndicationBox.dataset.originalMessage;
+                const newMessage = originalLoadingMessage + "<br><small style='font-style:italic; color:#5f6368;'>Application du contexte des règles mémorisées.</small>";
+                globalIndicationBox.innerHTML = newMessage;
+            } else {
+                 console.log("[PV Gemini Assistant] Contexte des règles mémorisées appliqué (message non affiché/appendu car pas de 'loading' spécifique actif).");
+            }
+        }
 
         const requestBody = {
             contents: [{ parts: [{ text: promptText }] }],
@@ -206,58 +224,121 @@
         });
     }
 
-    async function processSingleSentenceCorrection() {
+    async function analyzeSentenceWithFocus(focusType) {
         const sentenceElement = document.querySelector('.pointAndClickView .sentence');
         const noMistakeButton = document.querySelector('.pointAndClickView .noMistakeButton');
 
         if (document.querySelector('.popupPanel.intensivePopup .intensiveQuestion')) {
-            console.log("[PV Gemini Assistant] processSingleSentenceCorrection: Annulé, un QCM semble actif.");
+            console.log(`[PV Gemini Assistant] analyzeSentenceWithFocus (${focusType}): Annulé, un QCM semble actif.`);
             return;
         }
-
         if (!sentenceElement || !noMistakeButton) {
-            console.log("[PV Gemini Assistant] Type 1: Conditions non remplies.");
+            console.log(`[PV Gemini Assistant] analyzeSentenceWithFocus (${focusType}): Conditions non remplies.`);
             return;
         }
         const sentenceText = sentenceElement.textContent.trim();
         if (!sentenceText) return;
 
-        console.log(`[PV Gemini Assistant] Type 1 (Phrase unique) détectée : "${sentenceText}"`);
-        showGlobalIndication(`Analyse (Phrase unique) en cours avec ${GEMINI_MODEL_NAME}...`, "loading");
+        let specificSystemInstruction = `Tu es un correcteur grammatical, orthographique, et syntaxique expert de la langue française.`;
+        let loadingMessagePrefix = "Analyse (Phrase unique)";
 
-        const systemInstructionForSingle = `Tu es un correcteur grammatical, orthographique, et syntaxique expert de la langue française.`;
-        const prompt = `Analyse la phrase suivante pour identifier une unique faute (la plus évidente ou la première rencontrée s'il y en a plusieurs). Types de fautes : orthographe, grammaire, conjugaison, accord, typographie, syntaxe. Phrase : "${sentenceText}" Instructions : 1. Si faute, réponds avec le mot/groupe de mots fautif exact. 2. Si correcte, réponds "AUCUNE_FAUTE". Ne fournis aucune explication. Exemples : "Les chat sont joueurs." -> "chat"; "Tout est en ordre." -> "AUCUNE_FAUTE".`;
+        if (focusType === 'memorized_rules') {
+            if (memoireDesCorrections.length === 0) {
+                showGlobalIndication("Aucune règle mémorisée à utiliser.", "warning");
+                setTimeout(hideGlobalIndication, 3000);
+                return;
+            }
+            specificSystemInstruction = `Tu es un assistant expert. Pour l'analyse suivante, concentre-toi INTENSÉMENT sur les 'Leçons' (règles mémorisées) qui te sont fournies dans ton contexte système. Essaie d'identifier si l'une d'elles s'applique directement à la phrase. Ta réponse doit être basée en priorité sur ces leçons. Les règles générales du français s'appliquent aussi.`;
+            loadingMessagePrefix = "Analyse (règles mémorisées)";
+        }
+
+        console.log(`[PV Gemini Assistant] Type 1 (${focusType}) détectée : "${sentenceText}"`);
+        showGlobalIndication(`${loadingMessagePrefix} en cours avec ${GEMINI_MODEL_NAME}...`, "loading");
+
+        const prompt = `Analyse la phrase suivante pour identifier une unique faute (la plus évidente ou la première rencontrée s'il y en a plusieurs). Types de fautes : orthographe, grammaire, conjugaison, accord, typographie, syntaxe. Phrase : "${sentenceText}"
+Instructions pour le format de réponse :
+1. Si une faute est trouvée, réponds avec le mot/groupe de mots fautif exact.
+2. IMPORTANT: Si le mot/groupe de mots fautif exact apparaît plusieurs fois dans la phrase, tu DOIS préfixer ta réponse par son numéro d'occurrence en toutes lettres (premier, première, deuxième, troisième, etc.), suivi d'un espace, puis du mot/groupe de mots fautif. Exemple: si la faute est le deuxième mot "erreur" dans la phrase, réponds "deuxième erreur". Si c'est le premier, réponds "premier erreur". Si une seule occurrence ou si ce n'est pas pertinent, réponds juste avec le mot/groupe de mots fautif.
+3. Si la phrase est correcte (AUCUNE faute de quelque type que ce soit), réponds UNIQUEMENT avec la chaîne de caractères "AUCUNE_FAUTE".
+Ne fournis JAMAIS d'explication ou de commentaire. Exemples de réponse si faute: "chat", "deuxième chat", "la erreurs", "premier les". Exemple si correcte: "AUCUNE_FAUTE".`;
 
         try {
             const singleSentenceThinkingBudget = 512;
-            const estimatedResponseTokens = 30;
-            const singleSentenceMaxOutputTokens = singleSentenceThinkingBudget + estimatedResponseTokens + 50;
+            const estimatedResponseTokens = 80;
+            const singleSentenceMaxOutputTokens = singleSentenceThinkingBudget + estimatedResponseTokens + 70;
 
-            console.log(`[PV Gemini Assistant] Phrase Unique: thinkingBudget=${singleSentenceThinkingBudget}, calculatedMaxOutputTokens=${singleSentenceMaxOutputTokens}`);
+            console.log(`[PV Gemini Assistant] ${loadingMessagePrefix}: thinkingBudget=${singleSentenceThinkingBudget}, calculatedMaxOutputTokens=${singleSentenceMaxOutputTokens}`);
 
-            const geminiResponse = await callGeminiAPI(prompt, 0.1, singleSentenceMaxOutputTokens, singleSentenceThinkingBudget, systemInstructionForSingle);
+            const geminiResponse = await callGeminiAPI(prompt, 0.1, singleSentenceMaxOutputTokens, singleSentenceThinkingBudget, specificSystemInstruction);
 
-            if (!geminiResponse && geminiResponse !== "") {
-                showGlobalIndication("Aucune réponse de Gemini (Phrase unique) ou clé API non configurée.", "error");
-                return;
+            if ((!geminiResponse && geminiResponse !== "") || geminiResponse === null || typeof geminiResponse === 'undefined') {
+                 showGlobalIndication("Aucune réponse de Gemini ou clé API non configurée.", "error");
+                 return;
             }
-            const normalizedResponseCheck = geminiResponse.toUpperCase().replace(/[\s.]/g, '');
+
+            const geminiOutputForDisplay = geminiResponse.trim();
+            const normalizedResponseCheck = geminiOutputForDisplay.toUpperCase().replace(/[\s.]/g, '');
+
             if (normalizedResponseCheck === "AUCUNE_FAUTE") {
                 showGlobalIndication(`${GEMINI_MODEL_NAME} suggère : Aucune faute. <br>👉 Cliquez sur 'IL N'Y A PAS DE FAUTE'.`, "success");
                 if(noMistakeButton) { noMistakeButton.style.outline = '3px solid green'; noMistakeButton.style.borderWidth = '3px'; noMistakeButton.style.boxShadow = '0 0 10px green'; }
             } else {
-                const wordsToClickElements = Array.from(document.querySelectorAll('.pointAndClickView .pointAndClickSpan'));
+                let occurrence = 1;
+                let faultySegmentToSearch = geminiOutputForDisplay;
+
+                const ordinalRegex = /^(premier|première|deuxième|troisième|quatrième|cinquième)\s+(.+)/i;
+                const matchOrdinal = geminiOutputForDisplay.match(ordinalRegex);
+
+                if (matchOrdinal) {
+                    const ordinalStr = matchOrdinal[1].toLowerCase();
+                    faultySegmentToSearch = matchOrdinal[2].trim();
+                    switch (ordinalStr) {
+                        case 'premier': case 'première': occurrence = 1; break;
+                        case 'deuxième': occurrence = 2; break;
+                        case 'troisième': occurrence = 3; break;
+                        case 'quatrième': occurrence = 4; break;
+                        case 'cinquième': occurrence = 5; break;
+                    }
+                    console.log(`[PV Gemini Assistant] Occurrence spécifiée: ${ordinalStr} (${occurrence}), segment à chercher: "${faultySegmentToSearch}"`);
+                } else {
+                    faultySegmentToSearch = faultySegmentToSearch.trim();
+                    console.log(`[PV Gemini Assistant] Aucune occurrence spécifiée, segment à chercher: "${faultySegmentToSearch}"`);
+                }
+
+                if (!faultySegmentToSearch) {
+                     showGlobalIndication(`Réponse de ${GEMINI_MODEL_NAME} non exploitable: "${geminiOutputForDisplay}"`, "warning");
+                     return;
+                }
+
+                const wordsToClickElements = Array.from(document.querySelectorAll('.pointAndClickView .sentence .pointAndClickSpan'));
                 let foundElement = null;
-                const cleanGeminiResponse = geminiResponse.replace(/[.,;:!?]$/, '').trim();
+                let queryForExactHighlight = faultySegmentToSearch;
 
-                foundElement = wordsToClickElements.find(el => el.textContent.trim() === cleanGeminiResponse);
-
-                if (!foundElement) {
-                    foundElement = wordsToClickElements.find(el => el.textContent.trim().toLowerCase() === cleanGeminiResponse.toLowerCase());
+                const allExactMatches = wordsToClickElements.filter(el => el.textContent.trim() === queryForExactHighlight);
+                if (allExactMatches.length > 0 && occurrence <= allExactMatches.length) {
+                    foundElement = allExactMatches[occurrence - 1];
+                    console.log(`[PV Gemini Assistant] ${occurrence}e occurrence (exacte) trouvée pour "${queryForExactHighlight}"`);
                 }
 
                 if (!foundElement) {
-                    const lowerCleanResponse = cleanGeminiResponse.toLowerCase();
+                    const allExactMatchesCaseInsensitive = wordsToClickElements.filter(el => el.textContent.trim().toLowerCase() === queryForExactHighlight.toLowerCase());
+                    if (allExactMatchesCaseInsensitive.length > 0 && occurrence <= allExactMatchesCaseInsensitive.length) {
+                        foundElement = allExactMatchesCaseInsensitive[occurrence - 1];
+                        console.log(`[PV Gemini Assistant] ${occurrence}e occurrence (casse ignorée) trouvée pour "${queryForExactHighlight}"`);
+                    }
+                }
+
+                if (!foundElement) {
+                    console.log(`[PV Gemini Assistant] Pas de correspondance exacte/ordinale pour "${queryForExactHighlight}", tentative de recherche approximative.`);
+                    let fuzzyQuery = queryForExactHighlight;
+                    if (!/^[.,;:!?]+$/.test(fuzzyQuery) && fuzzyQuery.length > 1) {
+                         fuzzyQuery = fuzzyQuery.replace(/[.,;:!?]$/, '').trim();
+                    }
+                    if (fuzzyQuery === "" && queryForExactHighlight.length > 0) {
+                        fuzzyQuery = queryForExactHighlight;
+                    }
+
+                    const lowerFuzzyQuery = fuzzyQuery.toLowerCase();
                     let candidates = [];
                     for (let i = 0; i < wordsToClickElements.length; i++) {
                         const el = wordsToClickElements[i];
@@ -265,26 +346,25 @@
                         const lowerElText = elTextTrimmed.toLowerCase();
                         let score = 0;
                         if (lowerElText === "") continue;
-                        if (lowerElText.includes(lowerCleanResponse)) {
-                            score = 90 - (lowerElText.length - lowerCleanResponse.length);
-                        } else if (lowerCleanResponse.includes(lowerElText)) {
-                            if (lowerElText.length > 2) {
-                                score = 70 + lowerElText.length;
-                            } else if (lowerElText.length > 0 && lowerCleanResponse.split(/\s+/).length ===1 && lowerCleanResponse.length <=3) {
-                                score = 75;
-                            }
+
+                        if (lowerElText.includes(lowerFuzzyQuery)) {
+                            score = 90 - (lowerElText.length - lowerFuzzyQuery.length);
+                             if (lowerElText === lowerFuzzyQuery) score += 20;
+                        } else if (lowerFuzzyQuery.includes(lowerElText)) {
+                            if (lowerElText.length > 2) { score = 70 + lowerElText.length; }
+                            else if (lowerElText.length > 0 && lowerFuzzyQuery.split(/\s+/).length === 1 && lowerFuzzyQuery.length <= 3) { score = 75; }
                         }
                         if (score > 0) {
                             candidates.push({ element: el, score: score, index: i, text: elTextTrimmed });
                         }
                     }
-                    if (candidates.length === 0 && cleanGeminiResponse.includes(' ')) {
-                        const responseWords = lowerCleanResponse.split(/\s+/).filter(w => w.length > 2);
+                    if (candidates.length === 0 && queryForExactHighlight.includes(' ')) {
+                        const responseWords = queryForExactHighlight.toLowerCase().split(/\s+/).filter(w => w.length > 0);
                         for (let i = 0; i < wordsToClickElements.length; i++) {
                             const el = wordsToClickElements[i];
                             const spanTextLower = el.textContent.trim().toLowerCase();
-                            if (responseWords.some(rw => spanTextLower.includes(rw))) {
-                                candidates.push({element: el, score: 40, index: i, text: el.textContent.trim()});
+                            if (spanTextLower !== "" && responseWords.some(rw => spanTextLower.includes(rw) || rw.includes(spanTextLower))) {
+                                candidates.push({element: el, score: 40 + spanTextLower.length, index: i, text: el.textContent.trim()});
                             }
                         }
                     }
@@ -294,22 +374,31 @@
                             return a.index - b.index;
                         });
                         foundElement = candidates[0].element;
-                        console.log(`[PV Gemini Assistant] Meilleure correspondance trouvée (score ${candidates[0].score}, index ${candidates[0].index}): "${candidates[0].text}" pour la réponse Gemini "${cleanGeminiResponse}"`);
+                        console.log(`[PV Gemini Assistant] Meilleure correspondance (fuzzy) trouvée (score ${candidates[0].score}, index ${candidates[0].index}): "${candidates[0].text}" pour la requête Gemini "${geminiOutputForDisplay}" (segment cherché: "${faultySegmentToSearch}", fuzzy: "${fuzzyQuery}")`);
                     }
                 }
-
+                let indicationMessage = `${GEMINI_MODEL_NAME} suggère une faute sur/près de&nbsp;: "<b>${geminiOutputForDisplay}</b>". <br>👉 Cliquez sur le mot/groupe surligné.`;
                 if (foundElement) {
-                    showGlobalIndication(`${GEMINI_MODEL_NAME} suggère une faute sur/près de : "<b>${geminiResponse}</b>". <br>👉 Cliquez sur le mot/groupe surligné.`, "info");
+                    showGlobalIndication(indicationMessage, "info");
                     foundElement.style.outline = '3px solid red'; foundElement.style.borderWidth = '3px';  foundElement.style.boxShadow = '0 0 10px red';
                 } else {
-                    showGlobalIndication(`${GEMINI_MODEL_NAME} a indiqué : "<b>${geminiResponse}</b>", mais non trouvé. Vérifiez ou considérez "aucune faute".`, "warning");
+                     showGlobalIndication(`${GEMINI_MODEL_NAME} a indiqué&nbsp;: "<b>${geminiOutputForDisplay}</b>", mais non trouvé ou occurrence spécifiée invalide. Vérifiez ou considérez "aucune faute".`, "warning");
                 }
             }
         } catch (error) {
-            showGlobalIndication(`Erreur analyse (Phrase unique) : ${error}`, "error");
-            console.error("[PV Gemini Assistant] Erreur processSingleSentenceCorrection:", error);
+            showGlobalIndication(`Erreur ${loadingMessagePrefix} : ${error}`, "error");
+            console.error(`[PV Gemini Assistant] Erreur analyzeSentenceWithFocus (${focusType}):`, error);
         }
     }
+
+    async function processSingleSentenceCorrection() {
+        await analyzeSentenceWithFocus('general');
+    }
+
+    async function analyzeWithMemorizedRules() {
+        await analyzeSentenceWithFocus('memorized_rules');
+    }
+
 
     async function processMultipleChoiceExercise() {
         console.log("[PV Gemini Assistant] processMultipleChoiceExercise DÉCLENCHÉ.");
@@ -546,17 +635,17 @@ Instructions : Réponds avec un tableau JSON. Chaque objet : {"numero": (entier 
         memoireDesCorrections.push(nouvelleLecon);
 
         if (memoireDesCorrections.length > MAX_MEMOIRES_CORRECTIONS) {
-            memoireDesCorrections.shift(); // Remove the oldest by insertion order
+            memoireDesCorrections.shift();
         }
 
         console.log("[PV Gemini Assistant] Règle mémorisée/mise à jour (Forcé) : ", nouvelleLecon, "Mémoire actuelle:", memoireDesCorrections.map(m => m.ruleTitle));
         showGlobalIndication("Règle mémorisée", "success");
     }
 
-
     let currentPath = "";
     let analyzeButton = null;
     let memorizeRuleButton = null;
+    let useMemorizedRuleButton = null; // Nouveau bouton
     let uiUpdateTimeout = null;
 
     function updateUIForCurrentPage() {
@@ -598,35 +687,21 @@ Instructions : Réponds avec un tableau JSON. Chaque objet : {"numero": (entier 
         }
 
         if (isQCM) {
-            console.log("[PV Gemini Assistant] Détection: Exercice QCM (Type 2) actif.");
             analyzeButton = document.createElement('button');
             analyzeButton.id = 'gemini-analyze-button-multi';
             analyzeButton.textContent = 'Analyser QCM (Gemini)';
             analyzeButton.onclick = processMultipleChoiceExercise;
-            analyzeButton.style.position = 'fixed'; analyzeButton.style.top = '70px'; analyzeButton.style.right = '20px';
-            analyzeButton.style.zIndex = '10000'; analyzeButton.style.padding = '10px 15px';
-            analyzeButton.style.backgroundColor = '#34a853'; analyzeButton.style.color = 'white';
-            analyzeButton.style.border = 'none'; analyzeButton.style.borderRadius = '8px';
-            analyzeButton.style.cursor = 'pointer'; analyzeButton.style.fontFamily = '"Google Sans", Roboto, Arial, sans-serif';
-            analyzeButton.style.fontSize = '14px';
-            analyzeButton.style.boxShadow = '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)';
+             Object.assign(analyzeButton.style, {position: 'fixed', top: '70px', right: '20px', zIndex: '10000', padding: '10px 15px', backgroundColor: '#34a853', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontFamily: '"Google Sans", Roboto, Arial, sans-serif', fontSize: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)'});
             document.body.appendChild(analyzeButton);
             if (globalIndicationBox && globalIndicationBox.style.display === 'none') {
                  showGlobalIndication("Prêt à analyser le QCM.", "info");
             }
         } else if (isSingleSentence) {
-            console.log("[PV Gemini Assistant] Détection: Exercice Phrase Unique (Type 1) actif.");
             analyzeButton = document.createElement('button');
             analyzeButton.id = 'gemini-analyze-button-single';
             analyzeButton.textContent = 'Analyser Phrase (Gemini)';
             analyzeButton.onclick = processSingleSentenceCorrection;
-            analyzeButton.style.position = 'fixed'; analyzeButton.style.top = '70px'; analyzeButton.style.right = '20px';
-            analyzeButton.style.zIndex = '10000'; analyzeButton.style.padding = '10px 15px';
-            analyzeButton.style.backgroundColor = '#1a73e8'; analyzeButton.style.color = 'white';
-            analyzeButton.style.border = 'none'; analyzeButton.style.borderRadius = '8px';
-            analyzeButton.style.cursor = 'pointer'; analyzeButton.style.fontFamily = '"Google Sans", Roboto, Arial, sans-serif';
-            analyzeButton.style.fontSize = '14px';
-            analyzeButton.style.boxShadow = '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)';
+            Object.assign(analyzeButton.style, {position: 'fixed', top: '70px', right: '20px', zIndex: '10000', padding: '10px 15px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontFamily: '"Google Sans", Roboto, Arial, sans-serif', fontSize: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)'});
             document.body.appendChild(analyzeButton);
             if (globalIndicationBox && globalIndicationBox.style.display === 'none') {
                 showGlobalIndication("Prêt à analyser la phrase.", "info");
@@ -639,6 +714,10 @@ Instructions : Réponds avec un tableau JSON. Chaque objet : {"numero": (entier 
             memorizeRuleButton.remove();
             memorizeRuleButton = null;
         }
+        if (useMemorizedRuleButton && document.body.contains(useMemorizedRuleButton)) {
+            useMemorizedRuleButton.remove();
+            useMemorizedRuleButton = null;
+        }
 
         let ruleIsVisibleForManualMemorization = false;
         const answerDisplayedIncorrect = document.querySelector('.pointAndClick.answerDisplayed.incorrect');
@@ -650,29 +729,28 @@ Instructions : Réponds avec un tableau JSON. Chaque objet : {"numero": (entier 
             ruleIsVisibleForManualMemorization = true;
         }
 
+        let topOffsetForButtons = 70;
+        const analyzeButtonExists = analyzeButton && document.body.contains(analyzeButton);
+        if (analyzeButtonExists) topOffsetForButtons = 120;
+
+
         if (ruleIsVisibleForManualMemorization) {
-            console.log("[PV Gemini Assistant] Détection: Contexte de règle pour mémorisation manuelle.");
             memorizeRuleButton = document.createElement('button');
             memorizeRuleButton.id = 'gemini-memorize-rule-button';
             memorizeRuleButton.textContent = 'Mémoriser la règle';
             memorizeRuleButton.onclick = forcerMemorisationRegle;
-            memorizeRuleButton.style.position = 'fixed';
-            memorizeRuleButton.style.right = '20px';
-            memorizeRuleButton.style.zIndex = '9999';
-            memorizeRuleButton.style.padding = '8px 12px';
-            memorizeRuleButton.style.backgroundColor = '#ffc107';
-            memorizeRuleButton.style.color = 'black';
-            memorizeRuleButton.style.border = 'none';
-            memorizeRuleButton.style.borderRadius = '8px';
-            memorizeRuleButton.style.cursor = 'pointer';
-            memorizeRuleButton.style.fontFamily = '"Google Sans", Roboto, Arial, sans-serif';
-            memorizeRuleButton.style.fontSize = '13px';
-            memorizeRuleButton.style.boxShadow = '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)';
-
-            const analyzeButtonCurrentlyExists = analyzeButton && document.body.contains(analyzeButton);
-            memorizeRuleButton.style.top = analyzeButtonCurrentlyExists ? '120px' : '70px';
-
+            Object.assign(memorizeRuleButton.style, {position: 'fixed', top: `${topOffsetForButtons}px`, right: '20px', zIndex: '9999', padding: '8px 12px', backgroundColor: '#ffc107', color: 'black', border: 'none', borderRadius: '8px', cursor: 'pointer', fontFamily: '"Google Sans", Roboto, Arial, sans-serif', fontSize: '13px', boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)'});
             document.body.appendChild(memorizeRuleButton);
+            topOffsetForButtons += 50; // Increment offset for the next button
+        }
+
+        if (isSingleSentence && memoireDesCorrections.length > 0) {
+            useMemorizedRuleButton = document.createElement('button');
+            useMemorizedRuleButton.id = 'gemini-use-memorized-rule-button';
+            useMemorizedRuleButton.textContent = 'Utiliser règle mémorisée';
+            useMemorizedRuleButton.onclick = analyzeWithMemorizedRules;
+            Object.assign(useMemorizedRuleButton.style, {position: 'fixed', top: `${topOffsetForButtons}px`, right: '20px', zIndex: '9998', padding: '8px 12px', backgroundColor: '#20c997', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontFamily: '"Google Sans", Roboto, Arial, sans-serif', fontSize: '13px', boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)'});
+            document.body.appendChild(useMemorizedRuleButton);
         }
     }
 
@@ -684,7 +762,8 @@ Instructions : Réponds avec un tableau JSON. Chaque objet : {"numero": (entier 
     });
 
     window.addEventListener('load', () => {
-        console.log(`[PV Gemini Assistant] Page chargée. Initialisation du script v${GM_info.script.version} (${GEMINI_MODEL_NAME}).`);
+        const scriptVersion = (typeof GM_info !== 'undefined' && GM_info.script) ? GM_info.script.version : 'unknown';
+        console.log(`[PV Gemini Assistant] Page chargée. Initialisation du script v${scriptVersion} (${GEMINI_MODEL_NAME}).`);
         ensureGlobalIndicationBox();
         currentPath = window.location.href;
         observer.observe(document.body, { childList: true, subtree: true });
