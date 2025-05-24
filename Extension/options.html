@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Options Assistant Projet Voltaire</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; font-size: 14px; }
+        h1 { text-align: center; color: #333; }
+        .option-group { margin-bottom: 25px; padding: 15px; border: 1px solid #e0e0e0; border-radius: 5px; background-color: #f9f9f9; }
+        .option-group h2 { margin-top: 0; color: #555; font-size: 1.2em; border-bottom: 1px solid #eee; padding-bottom: 5px;}
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #444; }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 1em;
+        }
+        input[type="number"] { width: auto; min-width: 100px; } /* Ajustement pour les nombres */
+        small { display: block; margin-top: -5px; margin-bottom: 10px; color: #777; font-size: 0.9em; }
+        .button-container { text-align: center; margin-top: 20px; }
+        button {
+            padding: 12px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+        button:hover { background-color: #0056b3; }
+        button#clearRules { background-color: #dc3545; margin-left: 10px; }
+        button#clearRules:hover { background-color: #c82333; }
+        #status { margin-top: 20px; font-weight: bold; text-align: center; min-height: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Options de l'Assistant Projet Voltaire</h1>
+
+    <div class="option-group">
+        <h2>Configuration de l'API</h2>
+        <div>
+            <label for="apiKey">Clé API Gemini :</label>
+            <input type="text" id="apiKey" name="apiKey" placeholder="Entrez votre clé API Gemini ici">
+            <small>Nécessaire pour que l'extension communique avec l'IA Gemini.</small>
+        </div>
+    </div>
+
+    <div class="option-group">
+        <h2>Mémoire des Corrections</h2>
+        <div>
+            <label for="maxCorrections">Nombre maximum de règles à mémoriser :</label>
+            <input type="number" id="maxCorrections" name="maxCorrections" min="0" max="50" value="10">
+            <small>Définit combien de corrections/règles récentes l'assistant gardera en mémoire (0-50). Recommandé : 5-15.</small>
+        </div>
+    </div>
+
+    <div class="option-group">
+        <h2>Budgets de Réflexion (Tokens)</h2>
+        <small>Ces valeurs influencent la "profondeur" de l'analyse de l'IA. Des valeurs plus élevées peuvent donner de meilleurs résultats mais consomment plus et peuvent être plus lentes.</small>
+        <br>
+        <div>
+            <label for="thinkingBudgetNormal">Analyse de Phrase (Normale) :</label>
+            <input type="number" id="thinkingBudgetNormal" name="thinkingBudgetNormal" min="0" step="64" value="512">
+            <small>Budget pour l'analyse standard. Recommandé : 256-512.</small>
+        </div>
+        <div>
+            <label for="thinkingBudgetEnhanced">Analyse de Phrase (Renforcée) :</label>
+            <input type="number" id="thinkingBudgetEnhanced" name="thinkingBudgetEnhanced" min="0" step="64" value="1536">
+            <small>Budget pour l'analyse renforcée. Recommandé : 1024-2048.</small>
+        </div>
+        <div>
+            <label for="thinkingBudgetQCM">Analyse des QCM :</label>
+            <input type="number" id="thinkingBudgetQCM" name="thinkingBudgetQCM" min="0" step="64" value="1024">
+            <small>Budget pour l'analyse des questions à choix multiples. Recommandé : 512-1024.</small>
+        </div>
+    </div>
+
+    <div class="button-container">
+        <button id="save">Enregistrer les Options</button>
+        <button id="clearRules">Effacer les Règles Mémorisées</button>
+    </div>
+    <div id="status"></div>
+
+    <script src="options.js"></script>
+</body>
+</html>
