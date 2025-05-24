@@ -18,23 +18,38 @@
             box-sizing: border-box;
             font-size: 1em;
         }
-        input[type="number"] { width: auto; min-width: 100px; } /* Ajustement pour les nombres */
-        small { display: block; margin-top: -5px; margin-bottom: 10px; color: #777; font-size: 0.9em; }
-        .button-container { text-align: center; margin-top: 20px; }
-        button {
+        #apiKey { margin-bottom: 5px; }
+
+        input[type="number"] { width: auto; min-width: 100px; }
+        small { display: block; margin-bottom: 10px; color: #777; font-size: 0.9em; }
+        .button-container { text-align: center; margin-top: 20px; margin-bottom: 20px;}
+        button, .button-link {
             padding: 12px 20px;
             background-color: #007bff;
-            color: white;
+            color: white !important;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             font-size: 1em;
+            text-decoration: none;
+            display: inline-block;
             transition: background-color 0.3s ease;
+            margin-right: 10px;
+            margin-bottom: 10px;
         }
-        button:hover { background-color: #0056b3; }
+        button:last-child, .button-link:last-child { margin-right: 0; }
+
+
+        button:hover, .button-link:hover { background-color: #0056b3; }
+
+        .button-link.get-api-key { background-color: #28a745; }
+        .button-link.get-api-key:hover { background-color: #218838; }
+
+
         button#clearRules { background-color: #dc3545; margin-left: 10px; }
         button#clearRules:hover { background-color: #c82333; }
         #status { margin-top: 20px; font-weight: bold; text-align: center; min-height: 20px; }
+        .api-key-link-container { margin-top: 10px; margin-bottom: 15px;}
     </style>
 </head>
 <body>
@@ -46,6 +61,10 @@
             <label for="apiKey">Clé API Gemini :</label>
             <input type="text" id="apiKey" name="apiKey" placeholder="Entrez votre clé API Gemini ici">
             <small>Nécessaire pour que l'extension communique avec l'IA Gemini.</small>
+        </div>
+        <div class="api-key-link-container">
+            <a href="https://aistudio.google.com/apikey" target="_blank" class="button-link get-api-key">Obtenir une Clé API Gemini</a>
+            <small style="margin-top: 5px;">Ouvre la page Google AI Studio dans un nouvel onglet pour créer ou gérer vos clés API.</small>
         </div>
     </div>
 
