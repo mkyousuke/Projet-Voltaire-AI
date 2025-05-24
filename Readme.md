@@ -4,7 +4,7 @@ L'Assistant Projet Voltaire est un outil conçu pour vous aider dans vos exercic
 
 Ce projet est disponible sous deux formes :
 * **🌟 Extension de Navigateur (Recommandé) :** Pour une installation facile, une meilleure intégration et la persistance des données (comme les règles mémorisées et votre clé API) entre les sessions. C'est la version maintenue en priorité.
-* **📜 Script Tampermonkey (Utilisateur avancé) :** Pour ceux qui préfèrent utiliser un gestionnaire de scripts.
+* **📜 Script Tampermonkey (Utilisateur avancé, Fonctionne aussi avec la nouvelle interface) :** Pour ceux qui préfèrent utiliser un gestionnaire de scripts.
 
 ## ✨ Fonctionnalités Principales
 
